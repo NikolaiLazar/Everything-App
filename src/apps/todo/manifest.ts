@@ -5,7 +5,7 @@ const manifest: AppManifest = {
   id: 'todo',
   name: 'Quests',
   icon: '🏆',
-  version: '1.0.0',
+  version: '1.1.0',
   order: 30,
   component: lazy(() => import('./App')),
 }

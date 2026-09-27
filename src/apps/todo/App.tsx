@@ -8,6 +8,23 @@ interface Item {
   points: number
   done: boolean
   completed_at: string | null
+  due_date: string | null
+}
+
+const todayKey = () => new Date().toLocaleDateString('sv') // YYYY-MM-DD in lokaler Zeit
+
+/** Beschriftung und Zustand des Fälligkeitsdatums; YYYY-MM-DD-Strings lassen sich direkt vergleichen. */
+function dueInfo(due: string): { label: string; state: 'overdue' | 'today' | 'soon' | 'later' } {
+  const [y, m, d] = due.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const formatted = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const today = todayKey()
+  if (due < today) return { label: `Überfällig · ${formatted}`, state: 'overdue' }
+  if (due === today) return { label: 'Heute', state: 'today' }
+  if (due === tomorrow.toLocaleDateString('sv')) return { label: 'Morgen', state: 'soon' }
+  return { label: formatted, state: 'later' }
 }
 
 interface Reward {
@@ -30,6 +47,7 @@ export default function TodoApp() {
   const [tab, setTab] = useState<'quests' | 'rewards'>('quests')
   const [title, setTitle] = useState('')
   const [difficulty, setDifficulty] = useState(DIFFICULTIES[0].key)
+  const [dueDate, setDueDate] = useState('')
   const [rewardTitle, setRewardTitle] = useState('')
   const [rewardCost, setRewardCost] = useState(50)
   const [error, setError] = useState('')
@@ -42,7 +60,7 @@ export default function TodoApp() {
 
   async function load() {
     const [itemsRes, rewardsRes, redemptionsRes] = await Promise.all([
-      supabase.from('todo_items').select('id, title, points, done, completed_at').order('created_at', { ascending: false }),
+      supabase.from('todo_items').select('id, title, points, done, completed_at, due_date').order('created_at', { ascending: false }),
       supabase.from('todo_rewards').select('id, title, cost').order('cost'),
       supabase.from('todo_redemptions').select('id, title, cost, redeemed_at').order('redeemed_at', { ascending: false }),
     ])
@@ -63,16 +81,20 @@ export default function TodoApp() {
   const balance = earned - spent
   const level = useMemo(() => levelInfo(earned), [earned])
   const streak = useMemo(() => computeStreak(items.filter((i) => i.done).map((i) => i.completed_at)), [items])
-  const open = items.filter((i) => !i.done)
+  // Offene Quests nach Fälligkeit sortieren; ohne Datum ans Ende (sort ist stabil, sonst bleibt die Erstellreihenfolge)
+  const open = items
+    .filter((i) => !i.done)
+    .sort((a, b) => (a.due_date ?? '9999-12-31').localeCompare(b.due_date ?? '9999-12-31'))
   const done = items.filter((i) => i.done)
 
   async function addItem(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
     const points = DIFFICULTIES.find((d) => d.key === difficulty)!.points
-    const { error } = await supabase.from('todo_items').insert({ title, points })
+    const { error } = await supabase.from('todo_items').insert({ title, points, due_date: dueDate || null })
     if (error) return setError(error.message)
     setTitle('')
+    setDueDate('')
     load()
   }
 
@@ -162,6 +184,7 @@ export default function TodoApp() {
                 </option>
               ))}
             </select>
+            <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} title="Fällig am (optional)" />
             <button type="submit">Hinzufügen</button>
           </form>
           <ul className="quests">
@@ -172,6 +195,10 @@ export default function TodoApp() {
                   <span>{i.title}</span>
                 </label>
                 <div className="right">
+                  {i.due_date && (() => {
+                    const due = dueInfo(i.due_date)
+                    return <span className={`due ${due.state}`}>📅 {due.label}</span>
+                  })()}
                   <span className="points">+{i.points}</span>
                   <button onClick={() => removeItem(i.id)}>✕</button>
                 </div>

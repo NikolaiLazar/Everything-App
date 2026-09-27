@@ -119,6 +119,9 @@ main { padding: 24px; max-width: 1000px; margin: 0 auto; }
 .todo ul.quests.done li span { text-decoration: line-through; opacity: .6; }
 .todo .right { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .todo .points { font-weight: 700; opacity: .8; }
+.todo .due { font-size: 13px; padding: 2px 8px; border-radius: 999px; background: #8882; }
+.todo .due.overdue { background: #e5505033; color: #d03b3b; font-weight: 600; }
+.todo .due.today { background: #f6b93b44; font-weight: 600; }
 .todo li.empty { opacity: .6; justify-content: center; border-style: dashed; }
 .todo details { margin-top: 16px; }
 .todo details summary { cursor: pointer; margin-bottom: 8px; opacity: .8; }
