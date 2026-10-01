@@ -188,11 +188,14 @@ main { padding: 24px; max-width: 1000px; margin: 0 auto; }
 
 .receipts .scan-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 24px; border: 1px dashed #8886; border-radius: 12px; cursor: pointer; text-align: center; }
 .receipts .scan-drop .icon { font-size: 40px; }
+.receipts .manual-hint { text-align: center; margin-top: 12px; opacity: .8; }
+.receipts button.link { background: none; border: none; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; color: inherit; }
 .receipts .scanning { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 0; }
 .receipts .preview { max-width: 220px; max-height: 280px; object-fit: contain; border-radius: 8px; border: 1px solid #8884; }
 .receipts .scanning .bar { width: min(320px, 100%); height: 8px; border-radius: 999px; background: #8883; overflow: hidden; }
 .receipts .scanning .bar .fill { height: 100%; background: linear-gradient(90deg, #4a69bd, #6a89cc); transition: width .2s linear; }
 
+.receipts .receipt-form { margin-top: 8px; }
 .receipts .review-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-bottom: 16px; }
 .receipts .review-head .fields { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 200px; }
 .receipts .review-head label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; opacity: .8; }
@@ -214,6 +217,7 @@ table.review input[type="number"] { min-width: 80px; }
 .receipts ul.items li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid #8882; flex-wrap: wrap; }
 .receipts ul.items li .name { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
 .receipts ul.items li .qty { opacity: .7; font-size: 14px; white-space: nowrap; }
+.receipts .receipt-actions { display: flex; gap: 8px; margin: 4px 0 8px; }
 .receipts .remove-receipt { margin: 4px 0 8px; }
 
 .receipts .stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 16px 0 20px; }

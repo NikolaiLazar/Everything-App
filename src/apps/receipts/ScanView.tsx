@@ -1,40 +1,18 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { supabase } from '../../lib/supabase'
-import { CATEGORIES, suggestCategory } from './categories'
+import { suggestCategory } from './categories'
 import { parseReceiptText } from './receiptParser'
 import { ocrStatusLabel, recognizeReceipt, type OcrProgress } from './ocr'
-
-interface Row {
-  id: string
-  name: string
-  quantity: number
-  unitPrice: number | null
-  totalPrice: number
-  category: string
-}
+import ReceiptForm, { emptyRow, newRowId, type ReceiptFormPayload, type Row } from './ReceiptForm'
 
 const todayKey = () => new Date().toLocaleDateString('sv') // YYYY-MM-DD in lokaler Zeit
-
-let rowSeq = 0
-const newRowId = () => `row-${++rowSeq}`
-
-function emptyRow(): Row {
-  return { id: newRowId(), name: '', quantity: 1, unitPrice: null, totalPrice: 0, category: CATEGORIES[CATEGORIES.length - 1].key }
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
-}
 
 export default function ScanView({ onSaved }: { onSaved: () => void }) {
   const [phase, setPhase] = useState<'idle' | 'scanning' | 'review'>('idle')
   const [progress, setProgress] = useState<OcrProgress | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [rows, setRows] = useState<Row[]>([])
-  const [store, setStore] = useState('')
-  const [purchasedAt, setPurchasedAt] = useState(todayKey())
+  const [initialRows, setInitialRows] = useState<Row[]>([])
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
@@ -42,11 +20,16 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
     setPhase('idle')
     setProgress(null)
     setPreviewUrl(null)
-    setRows([])
-    setStore('')
-    setPurchasedAt(todayKey())
+    setInitialRows([])
     setError('')
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function startManual() {
+    setError('')
+    setPreviewUrl(null)
+    setInitialRows([emptyRow()])
+    setPhase('review')
   }
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
@@ -59,7 +42,7 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
     try {
       const text = await recognizeReceipt(file, setProgress)
       const parsed = parseReceiptText(text)
-      setRows(
+      setInitialRows(
         parsed.length > 0
           ? parsed.map((p) => ({
               id: newRowId(),
@@ -78,37 +61,17 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  function updateRow(id: string, patch: Partial<Row>) {
-    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-  }
-
-  function removeRow(id: string) {
-    setRows((rs) => rs.filter((r) => r.id !== id))
-  }
-
-  const total = rows.reduce((sum, r) => sum + (Number.isFinite(r.totalPrice) ? r.totalPrice : 0), 0)
-
-  async function save(e: FormEvent) {
-    e.preventDefault()
-    const validRows = rows.filter((r) => r.name.trim() && r.totalPrice > 0)
-    if (validRows.length === 0) {
-      setError('Mindestens eine Position mit Name und Preis wird benötigt.')
-      return
-    }
-    setSaving(true)
-    setError('')
+  async function handleSave(payload: ReceiptFormPayload): Promise<string | null> {
     const { data: receipt, error: receiptError } = await supabase
       .from('receipts_receipts')
-      .insert({ store: store.trim() || 'Unbekannt', purchased_at: purchasedAt, total: round2(total) })
+      .insert({ store: payload.store, purchased_at: payload.purchasedAt, total: payload.total })
       .select('id')
       .single()
     if (receiptError || !receipt) {
-      setError(receiptError?.message ?? 'Kassenzettel konnte nicht gespeichert werden.')
-      setSaving(false)
-      return
+      return receiptError?.message ?? 'Kassenzettel konnte nicht gespeichert werden.'
     }
     const { error: itemsError } = await supabase.from('receipts_items').insert(
-      validRows.map((r) => ({
+      payload.rows.map((r) => ({
         receipt_id: receipt.id,
         name: r.name.trim(),
         category: r.category,
@@ -120,13 +83,11 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
     if (itemsError) {
       // Keine echte Transaktion ohne Backend möglich: verwaisten Kassenzettel wieder entfernen.
       await supabase.from('receipts_receipts').delete().eq('id', receipt.id)
-      setError(itemsError.message)
-      setSaving(false)
-      return
+      return itemsError.message
     }
-    setSaving(false)
     reset()
     onSaved()
+    return null
   }
 
   return (
@@ -134,11 +95,19 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
       {error && <p role="alert">{error}</p>}
 
       {phase === 'idle' && (
-        <label className="scan-drop">
-          <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={onFile} hidden />
-          <span className="icon">📸</span>
-          <span>Kassenzettel fotografieren oder Bild auswählen</span>
-        </label>
+        <>
+          <label className="scan-drop">
+            <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={onFile} hidden />
+            <span className="icon">📸</span>
+            <span>Kassenzettel fotografieren oder Bild auswählen</span>
+          </label>
+          <p className="manual-hint">
+            Kein Foto zur Hand?{' '}
+            <button type="button" className="link" onClick={startManual}>
+              Kassenzettel manuell erfassen
+            </button>
+          </p>
+        </>
       )}
 
       {phase === 'scanning' && (
@@ -154,102 +123,15 @@ export default function ScanView({ onSaved }: { onSaved: () => void }) {
       )}
 
       {phase === 'review' && (
-        <form onSubmit={save}>
-          <div className="review-head">
-            {previewUrl && <img src={previewUrl} alt="Kassenzettel-Vorschau" className="preview" />}
-            <div className="fields">
-              <label>
-                Supermarkt
-                <input value={store} onChange={(e) => setStore(e.target.value)} placeholder="z. B. Rewe" />
-              </label>
-              <label>
-                Datum
-                <input type="date" value={purchasedAt} onChange={(e) => setPurchasedAt(e.target.value)} />
-              </label>
-            </div>
-          </div>
-
-          <div className="table-wrap">
-            <table className="review">
-              <thead>
-                <tr>
-                  <th>Position</th>
-                  <th>Menge</th>
-                  <th>Einzelpreis</th>
-                  <th>Gesamt</th>
-                  <th>Kategorie</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <input value={r.name} onChange={(e) => updateRow(r.id, { name: e.target.value })} placeholder="Artikel…" />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={r.quantity}
-                        onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={r.unitPrice ?? ''}
-                        onChange={(e) => updateRow(r.id, { unitPrice: e.target.value === '' ? null : Number(e.target.value) })}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={r.totalPrice}
-                        onChange={(e) => updateRow(r.id, { totalPrice: Number(e.target.value) })}
-                      />
-                    </td>
-                    <td>
-                      <select value={r.category} onChange={(e) => updateRow(r.id, { category: e.target.value })}>
-                        {CATEGORIES.map((c) => (
-                          <option key={c.key} value={c.key}>
-                            {c.emoji} {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <button type="button" onClick={() => removeRow(r.id)} aria-label="Position entfernen">
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="review-footer">
-            <button type="button" onClick={() => setRows((rs) => [...rs, emptyRow()])}>
-              + Position hinzufügen
-            </button>
-            <span className="total">Summe: {total.toFixed(2)} €</span>
-          </div>
-
-          <div className="actions">
-            <button type="button" onClick={reset}>
-              Abbrechen
-            </button>
-            <button type="submit" disabled={saving}>
-              {saving ? 'Speichert…' : 'Speichern'}
-            </button>
-          </div>
-        </form>
+        <ReceiptForm
+          initialStore=""
+          initialDate={todayKey()}
+          initialRows={initialRows}
+          previewUrl={previewUrl}
+          submitLabel="Speichern"
+          onCancel={reset}
+          onSave={handleSave}
+        />
       )}
     </div>
   )
