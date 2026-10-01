@@ -8,5 +8,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: apiTarget ? { proxy: { '/api': { target: apiTarget, changeOrigin: true } } } : undefined,
+    // tesseract.js lädt Worker/WASM über eigene, dynamische new Worker()/import()-Aufrufe;
+    // Vites Dev-Pre-Bundling verwirrt sich daran sonst (bekanntes Vite+tesseract.js-Problem).
+    optimizeDeps: { exclude: ['tesseract.js'] },
   }
 })
