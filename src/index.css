@@ -15,6 +15,13 @@ body { margin: 0; }
 .appmenu .popover li small { opacity: .6; margin-left: 4px; }
 .appmenu .popover li.empty { cursor: default; opacity: .6; }
 .user { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+@media (max-width: 700px) {
+  .header { gap: 8px; }
+  .user span { display: none; }
+  .appmenu { position: static; min-width: 0; }
+  .appmenu .popover { left: 16px; right: 16px; width: auto; }
+  .appmenu .popover ul { max-height: calc(100dvh - 140px); }
+}
 main { padding: 24px; max-width: 1000px; margin: 0 auto; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
 .card { display: flex; flex-direction: column; gap: 4px; padding: 20px; border: 1px solid #8884; border-radius: 12px; text-decoration: none; color: inherit; }

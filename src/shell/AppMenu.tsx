@@ -20,7 +20,8 @@ export function AppMenu() {
 
   useEffect(() => {
     if (!open) return
-    inputRef.current?.focus()
+    // Auf Touch-Geräten kein Autofokus: die Bildschirmtastatur würde die Liste verdecken
+    if (!window.matchMedia('(pointer: coarse)').matches) inputRef.current?.focus()
     const onPointerDown = (e: PointerEvent) => {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
     }
